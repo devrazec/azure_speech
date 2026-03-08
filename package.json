@@ -1,0 +1,30 @@
+{
+  "name": "azure_speech",
+  "version": "1.0.0",
+  "description": "Text to speech from Azure Speech enables your applications, tools, or devices to convert text into humanlike synthesized speech.",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "pronunciation": "node pronunciation.js",
+    "text-to-speech": "node text-to-speech.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/devrazec/azure_speech.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/devrazec/azure_speech/issues"
+  },
+  "homepage": "https://github.com/devrazec/azure_speech#readme",
+  "dependencies": {
+    "dotenv": "^17.3.1",
+    "mic-to-speech": "^1.0.1",
+    "microsoft-cognitiveservices-speech-sdk": "^1.48.0",
+    "xlsx": "^0.18.5"
+  }
+}
