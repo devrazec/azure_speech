@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pronunciation Assessment</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: system-ui, sans-serif; background: #f5f5f5; color: #222; padding: 2rem; }
+        h1 { margin-bottom: 1.5rem; font-size: 1.4rem; }
+
+        .config { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 1.2rem; margin-bottom: 1.5rem; }
+        .config label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.3rem; color: #555; }
+        .config input, .config textarea { width: 100%; padding: 0.5rem 0.7rem; border: 1px solid #ccc; border-radius: 5px; font-size: 0.95rem; margin-bottom: 0.9rem; }
+        .config textarea { resize: vertical; min-height: 70px; }
+
+        .controls { display: flex; gap: 1rem; margin-bottom: 1.5rem; }
+        button { padding: 0.6rem 1.4rem; font-size: 0.95rem; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; }
+        #startBtn  { background: #0078d4; color: #fff; }
+        #startBtn:hover  { background: #005fa3; }
+        #startBtn:disabled { background: #999; cursor: not-allowed; }
+        #stopBtn   { background: #d9534f; color: #fff; }
+        #stopBtn:hover   { background: #b52b27; }
+        #stopBtn:disabled { background: #999; cursor: not-allowed; }
+
+        #status { font-size: 0.9rem; color: #555; margin-bottom: 1.5rem; min-height: 1.2rem; }
+        #status.recording { color: #d9534f; font-weight: 600; }
+
+        .scores { display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem; }
+        .score-card { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 0.9rem 1.2rem; min-width: 130px; text-align: center; }
+        .score-card .label { font-size: 0.78rem; color: #777; margin-bottom: 0.3rem; }
+        .score-card .value { font-size: 1.8rem; font-weight: 700; }
+        .score-card .value.high   { color: #2e7d32; }
+        .score-card .value.medium { color: #e65100; }
+        .score-card .value.low    { color: #c62828; }
+
+        .recognized { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 1rem 1.2rem; margin-bottom: 1.5rem; font-size: 0.95rem; }
+        .recognized span { font-weight: 600; }
+
+        table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; border: 1px solid #ddd; font-size: 0.9rem; }
+        th { background: #f0f0f0; text-align: left; padding: 0.6rem 0.9rem; font-size: 0.8rem; color: #555; }
+        td { padding: 0.55rem 0.9rem; border-top: 1px solid #eee; }
+        tr.error td { background: #fff3f3; }
+
+        #results { display: none; }
+    </style>
+</head>
+<body>
+
+<h1>Pronunciation Assessment</h1>
+
+<div class="config">
+    <label>Azure Speech Key</label>
+    <input type="password" id="speechKey" placeholder="Your Azure Speech subscription key"
+    />
+
+    <label>Azure Speech Region</label>
+    <input type="text" id="speechRegion" placeholder="e.g. eastus"
+    />
+
+    <label>Reference Text</label>
+    <textarea id="referenceText">Both, simultaneously and in very different contexts, as the net effect depends almost entirely on how deliberately and consciously they are being used by each individual person.</textarea>
+</div>
+
+<div class="controls">
+    <button id="startBtn">&#9679; Start Recording</button>
+    <button id="stopBtn" disabled>&#9632; Stop &amp; Assess</button>
+</div>
+
+<p id="status">Ready.</p>
+
+<div id="results">
+    <div class="scores" id="scores"></div>
+    <div class="recognized" id="recognized"></div>
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Word</th>
+                <th>Accuracy Score</th>
+                <th>Error Type</th>
+            </tr>
+        </thead>
+        <tbody id="wordTable"></tbody>
+    </table>
+</div>
+
+<!-- Azure Cognitive Services Speech SDK (browser bundle) -->
+<script src="https://aka.ms/csspeech/jsbrowserpackageraw"></script>
+<script>
+    const SpeechSDK = window.SpeechSDK;
+
+    const startBtn       = document.getElementById('startBtn');
+    const stopBtn        = document.getElementById('stopBtn');
+    const statusEl       = document.getElementById('status');
+    const resultsEl      = document.getElementById('results');
+    const scoresEl       = document.getElementById('scores');
+    const recognizedEl   = document.getElementById('recognized');
+    const wordTableEl    = document.getElementById('wordTable');
+
+    let recognizer = null;
+
+    function setStatus(msg, recording = false) {
+        statusEl.textContent = msg;
+        statusEl.className = recording ? 'recording' : '';
+    }
+
+    function scoreClass(val) {
+        if (val >= 80) return 'high';
+        if (val >= 60) return 'medium';
+        return 'low';
+    }
+
+    function renderScores(scores) {
+        scoresEl.innerHTML = Object.entries(scores).map(([label, value]) => `
+            <div class="score-card">
+                <div class="label">${label}</div>
+                <div class="value ${scoreClass(value)}">${value !== null && value !== undefined ? value.toFixed(1) : 'N/A'}</div>
+            </div>
+        `).join('');
+    }
+
+    function renderWords(words) {
+        wordTableEl.innerHTML = words.map((w, i) => `
+            <tr class="${w.errorType !== 'None' ? 'error' : ''}">
+                <td>${i + 1}</td>
+                <td>${w.word}</td>
+                <td>${w.accuracyScore !== null && w.accuracyScore !== undefined ? w.accuracyScore.toFixed(1) : 'N/A'}</td>
+                <td>${w.errorType}</td>
+            </tr>
+        `).join('');
+    }
+
+    startBtn.addEventListener('click', () => {
+        const key    = document.getElementById('speechKey').value.trim();
+        const region = document.getElementById('speechRegion').value.trim();
+        const refText = document.getElementById('referenceText').value.trim();
+
+        if (!key || !region) {
+            alert('Please enter your Azure Speech Key and Region.');
+            return;
+        }
+
+        resultsEl.style.display = 'none';
+
+        const speechConfig = SpeechSDK.SpeechConfig.fromSubscription(key, region);
+        speechConfig.speechRecognitionLanguage = 'en-US';
+
+        const audioConfig = SpeechSDK.AudioConfig.fromDefaultMicrophoneInput();
+
+        const pronunciationConfig = new SpeechSDK.PronunciationAssessmentConfig(
+            refText,
+            SpeechSDK.PronunciationAssessmentGradingSystem.HundredMark,
+            SpeechSDK.PronunciationAssessmentGranularity.Phoneme,
+            true
+        );
+        pronunciationConfig.enableProsodyAssessment = true;
+
+        recognizer = new SpeechSDK.SpeechRecognizer(speechConfig, audioConfig);
+        pronunciationConfig.applyTo(recognizer);
+
+        recognizer.sessionStarted = (_s, e) => {
+            console.log('Session started:', e.sessionId);
+        };
+
+        startBtn.disabled = true;
+        stopBtn.disabled  = false;
+        setStatus('Recording... speak now.', true);
+
+        recognizer.recognizeOnceAsync(
+            (result) => {
+                stopBtn.disabled  = true;
+                startBtn.disabled = false;
+
+                if (result.reason === SpeechSDK.ResultReason.NoMatch) {
+                    setStatus('No speech detected. Please try again.');
+                    recognizer.close();
+                    recognizer = null;
+                    return;
+                }
+
+                const pResult = SpeechSDK.PronunciationAssessmentResult.fromResult(result);
+
+                const scores = {
+                    'Accuracy':      pResult.accuracyScore,
+                    'Pronunciation': pResult.pronunciationScore,
+                    'Completeness':  pResult.completenessScore,
+                    'Fluency':       pResult.fluencyScore,
+                    'Prosody':       pResult.prosodyScore,
+                };
+
+                const words = pResult.detailResult.Words.map(w => ({
+                    word:         w.Word,
+                    accuracyScore: w.PronunciationAssessment.AccuracyScore,
+                    errorType:    w.PronunciationAssessment.ErrorType,
+                }));
+
+                recognizedEl.innerHTML = `<span>Recognized:</span> ${result.text}`;
+                renderScores(scores);
+                renderWords(words);
+                resultsEl.style.display = 'block';
+
+                setStatus('Assessment complete.');
+                recognizer.close();
+                recognizer = null;
+            },
+            (err) => {
+                stopBtn.disabled  = true;
+                startBtn.disabled = false;
+                setStatus(`Error: ${err}`);
+                recognizer.close();
+                recognizer = null;
+            }
+        );
+    });
+
+    stopBtn.addEventListener('click', () => {
+        if (recognizer) {
+            recognizer.stopContinuousRecognitionAsync();
+        }
+        stopBtn.disabled  = true;
+        startBtn.disabled = false;
+        setStatus('Stopped. Processing...');
+    });
+</script>
+</body>
+</html>

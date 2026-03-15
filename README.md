@@ -55,3 +55,9 @@ https://learn.microsoft.com/en-us/azure/ai-services/speech-service/high-definiti
 en-US-Andrew2:DragonHDLatestNeural
 
 en-US-Emma2:DragonHDLatestNeural
+
+-- Run Server
+
+npx serve .
+
+# then open http://localhost:3000
