@@ -1,4 +1,4 @@
-# azure_speech
+# Azure AI Speech
 
 Text to speech from Azure Speech enables your applications, tools, or devices to convert text into humanlike synthesized speech.
 
@@ -60,3 +60,11 @@ en-US-Emma2:DragonHDLatestNeural
 npx serve .
 
 # then open http://localhost:3000
+
+# Web Interface
+
+http://localhost:3000
+
+![Pic1](./img/pic1.png)
+![Pic2](./img/pic2.png)
+![Pic3](./img/pic3.png)
